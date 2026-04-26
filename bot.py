@@ -133,11 +133,15 @@ async def init_db():
 
 # ─── Bot Commands Menu ─────────────────────────────────────────────────────────
 async def set_bot_commands(bot: Bot):
+    # User ko sirf ye 2 commands dikhti hain
     user_commands = [
         BotCommand("start",  "▶️ Bot shuru karo / media dekho"),
         BotCommand("status", "📅 Apni expiry date dekho"),
     ]
-    admin_commands = user_commands + [
+    # Admin ko saari commands dikhti hain
+    admin_commands = [
+        BotCommand("start",     "▶️ Bot shuru karo / media dekho"),
+        BotCommand("status",    "📅 Apni expiry date dekho"),
         BotCommand("stats",     "📊 Bot statistics"),
         BotCommand("pending",   "⏳ Pending approval requests"),
         BotCommand("approve",   "✅ User approve karo"),
