@@ -150,8 +150,13 @@ async def set_bot_commands(bot: Bot):
         BotCommand("support",   "🆘 Support button on/off karo"),
     ]
     await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
-    await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=ADMIN_ID))
-    logger.info("✅ Bot commands menu set")
+    try:
+        await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=ADMIN_ID))
+        logger.info("✅ Bot commands menu set (including admin commands)")
+    except Exception as e:
+        # Admin ne abhi tak bot ko /start nahi kiya — commands baad mein set honge
+        logger.warning(f"⚠️ Admin commands set nahi ho sake (admin ne bot start nahi kiya abhi): {e}")
+        logger.info("✅ Bot commands menu set (user commands only)")
 
 
 # ─── Expiry Checker (runs hourly) ──────────────────────────────────────────────
