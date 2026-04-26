@@ -7,15 +7,17 @@ A premium Telegram media delivery bot with access control, subscription manageme
 ## ✨ Features
 
 - 🔐 **Admin Approval System** — New users wait for admin approval before accessing content
-- 💎 **28-Day Premium Subscription** — Auto-expires access after 28 days with renewal prompt
+- 💎 **7-Day Premium Subscription** — Auto-expires access after 7 days with renewal prompt
+- 🔒 **Download & Forward Protection** — Media cannot be downloaded or forwarded by users
 - 🚫 **Ban / Unban System** — Admin can ban/unban users with reasons
 - 📤 **Broadcast Messages** — Send announcements to all active approved users
-- 🎬 **Smart Media Delivery** — Fetches unseen media first, with 10% repeat chance
+- 🎬 **Smart Media Delivery** — Fetches unseen media first, with 2% repeat chance
 - ⬅️➡️ **Previous / Next Navigation** — Users can navigate through media history
 - 🗑️ **Auto-Delete** — Media messages auto-delete after 10 minutes
-- 📊 **Live Stats** — Real-time live user count and total joins
+- 📊 **Live Stats** — Real-time user count, approved, banned, pending and media count
 - 👁️ **Media Watcher** — Auto-indexes new photos/videos posted in source channel
 - ⏰ **Expiry Checker** — Background task runs hourly to auto-ban expired users
+- ⚠️ **2-Day Expiry Warning** — Users get notified 2 days before their subscription ends
 
 ---
 
@@ -24,7 +26,7 @@ A premium Telegram media delivery bot with access control, subscription manageme
 | Component | Technology |
 |-----------|-----------|
 | Language | Python 3.11+ |
-| Bot Framework | python-telegram-bot v21.3 |
+| Bot Framework | python-telegram-bot v21.9 |
 | Database | PostgreSQL (Neon recommended) |
 | Hosting | Railway |
 
@@ -56,6 +58,7 @@ In Railway dashboard → your service → **Variables**, add:
 | `SOURCE_CHAT_ID` | Channel/group ID where media is posted | `-1001234567890` |
 | `ADMIN_ID` | Your Telegram user ID | `987654321` |
 | `ADMIN_USERNAME` | Your Telegram username | `@YourUsername` |
+| `SUPPORT_USERNAME` | Support contact username | `@SupportUsername` |
 
 > 💡 **Neon PostgreSQL** is recommended — free tier works great. Get URL from [neon.tech](https://neon.tech)
 
@@ -69,7 +72,11 @@ worker: python bot.py
 
 > ⚠️ Use `worker` not `web` — this bot uses polling, not a web server.
 
-### Step 5 — Deploy
+### Step 5 — First Run (Important!)
+
+After deploying, **open your bot on Telegram and send `/start`** as the admin before anything else. This is required so Telegram can register admin-specific commands in your bot menu.
+
+### Step 6 — Deploy
 
 Railway will auto-deploy on every push to `main`. Watch logs in the Railway dashboard to confirm the bot starts.
 
@@ -83,6 +90,7 @@ DATABASE_URL=postgresql://user:password@host:5432/dbname
 SOURCE_CHAT_ID=-1001234567890
 ADMIN_ID=123456789
 ADMIN_USERNAME=@YourUsername
+SUPPORT_USERNAME=@SupportUsername
 ```
 
 ---
@@ -91,15 +99,27 @@ ADMIN_USERNAME=@YourUsername
 
 | Command | Description |
 |---------|-------------|
-| `/stats` | View live users, total joins, approved, banned, expired, media count |
+| `/start` | Bot shuru karo / media dekho |
+| `/status` | Apni expiry date dekho |
+| `/stats` | View total joins, approved, banned, pending, media count |
 | `/pending` | List users waiting for approval |
-| `/approve <user_id>` | Approve a user (28-day access) |
+| `/approve <user_id>` | Approve a user (7-day access) |
 | `/reject <user_id>` | Reject a user's request |
 | `/ban <user_id> [reason]` | Ban a user |
 | `/unban <user_id>` | Unban a user |
 | `/banned` | List all banned users |
 | `/expiring` | Show users expiring in next 3 days |
 | `/broadcast <message>` | Send message to all approved users |
+| `/support on\|off` | Toggle support button visibility |
+
+---
+
+## 👤 User Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Start the bot / view media |
+| `/status` | Check your subscription expiry date |
 
 ---
 
@@ -118,7 +138,8 @@ ADMIN_USERNAME=@YourUsername
   │
   └── Approved → Welcome message + first media delivered
                     ↓
-              [⬅️ Previous]  [▶️ Next]
+              [⬅️ Previous]  [▶️ Next]  [🆘 Support]
+              🔒 Download & Forward disabled
               Auto-deletes after 10 minutes
 ```
 
@@ -133,6 +154,8 @@ The bot auto-creates all tables on first run:
 - `user_history` — Per-user seen media tracking
 - `user_position` — Last viewed media position per user
 - `banned_users` — Ban list with reasons and timestamps
+- `expiry_notified` — Tracks who has received 2-day expiry warning
+- `scheduled_deletes` — Pending message deletions (survives bot restarts)
 
 ---
 
@@ -154,9 +177,13 @@ XVIP-TELE-BOT/
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .bot.env file
-cp .bot.env.example .bot.env
-# Fill in your values
+# Set environment variables
+export BOT_TOKEN=your_bot_token_here
+export DATABASE_URL=postgresql://user:password@host:5432/dbname
+export SOURCE_CHAT_ID=-1001234567890
+export ADMIN_ID=123456789
+export ADMIN_USERNAME=@YourUsername
+export SUPPORT_USERNAME=@SupportUsername
 
 # Run
 python bot.py
