@@ -494,19 +494,30 @@ async def check_ban(update: Update, ctx=None) -> bool:
             await update.message.reply_text(msg_text, parse_mode="Markdown")
         elif update.callback_query:
             await update.callback_query.answer("💎 Premium expire! Admin se contact karein.", show_alert=True)
-        # Notify admin with Approve / Keep Banned buttons
+        # Notify admin — expired users get Approve/Reject, manually banned get Approve/Keep Banned
         if ctx:
             try:
-                await ctx.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=(
+                if expired:
+                    admin_text = (
+                        f"⏰ *Expired User Ne /start Kiya!*\n\n"
+                        f"👤 Name: *{username}*\n"
+                        f"🆔 User ID: `{user_id}`\n\n"
+                        f"Premium khatam ho gayi hai. Renew karna hai?"
+                    )
+                    keyboard = approval_keyboard(user_id)
+                else:
+                    admin_text = (
                         f"🔄 *Banned User Ne /start Kiya!*\n\n"
                         f"👤 Name: *{username}*\n"
                         f"🆔 User ID: `{user_id}`\n\n"
                         f"Subscription continue karna hai?"
-                    ),
+                    )
+                    keyboard = ban_request_keyboard(user_id)
+                await ctx.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=admin_text,
                     parse_mode="Markdown",
-                    reply_markup=ban_request_keyboard(user_id),
+                    reply_markup=keyboard,
                 )
             except TelegramError:
                 pass
