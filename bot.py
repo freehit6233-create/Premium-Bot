@@ -632,18 +632,14 @@ async def status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"╚══════════════════════╝\n\n"
             f"{status_icon} Status: *Active*\n"
             f"📅 Expiry: *{exp_str}*\n"
-            f"⏳ Remaining: *{days_left} din*\n\n"
-            f"_🗑 Ye message 10 sec mein delete ho jayega_"
-        )
+            f"⏳ Remaining: *{days_left} din*\n\n"        )
     else:
         text = (
             f"╔══════════════════════╗\n"
             f"      💎 *PREMIUM STATUS* 💎\n"
             f"╚══════════════════════╝\n\n"
             f"🟢 Status: *Active*\n"
-            f"📅 Expiry: *Lifetime*\n\n"
-            f"_🗑 Ye message 10 sec mein delete ho jayega_"
-        )
+            f"📅 Expiry: *Lifetime*\n\n"        )
     r = await update.message.reply_text(text, parse_mode="Markdown")
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
 
@@ -762,9 +758,7 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"✅ Approved Users:    *{approved_count}*\n"
         f"⏳ Pending:               *{pending_count}*\n"
         f"🚫 Banned:                *{banned_count}*\n"
-        f"🎬 Media in DB:         *{media_count}*\n\n"
-        f"_🗑 Ye message 10 sec mein delete ho jayega_"
-    )
+        f"🎬 Media in DB:         *{media_count}*\n\n"    )
     r = await update.message.reply_text(text, parse_mode="Markdown")
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
 
@@ -813,7 +807,7 @@ async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 failed += 1
             await asyncio.sleep(0.05)
         await status_msg.edit_text(
-            f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 12 ghante baad auto-delete ho jayega.",
+            f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*",
             parse_mode="Markdown"
         )
         return
@@ -885,7 +879,7 @@ async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(0.05)
 
     await status_msg.edit_text(
-        f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 12 ghante baad auto-delete ho jayega.",
+        f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*",
         parse_mode="Markdown"
     )
 
@@ -920,8 +914,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"      🚫 *USER BANNED*\n"
         f"╚══════════════════════╝\n\n"
         f"🆔 User: `{target_id}`\n"
-        f"📝 Reason: {reason}\n\n"
-        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        f"📝 Reason: {reason}",
         parse_mode="Markdown"
     )
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
@@ -956,8 +949,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"      🔓 *USER UNBANNED*\n"
         f"╚══════════════════════╝\n\n"
         f"🆔 User: `{target_id}`\n"
-        f"✅ Ban successfully hata diya gaya.\n\n"
-        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        f"✅ Ban successfully hata diya gaya.",
         parse_mode="Markdown"
     )
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
@@ -975,9 +967,8 @@ async def banned_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "╔══════════════════════╗\n"
             "      🚫 *BANNED USERS*\n"
             "╚══════════════════════╝\n\n"
-            "✅ Koi bhi user ban nahi hai.\n\n"
-            "_🗑 Ye message 2 min mein delete ho jayega_",
-            parse_mode="Markdown"
+            "✅ Koi bhi user ban nahi hai.",
+        parse_mode="Markdown"
         )
         await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
@@ -992,7 +983,6 @@ async def banned_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"   📝 {r['reason']}\n"
             f"   🕐 {r['banned_at'].strftime('%d %b %Y, %H:%M')}"
         )
-    lines.append("\n_🗑 Ye message 2 min mein delete ho jayega_")
     reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
     await _schedule_cmd_delete(ctx.bot, update, reply, DEL_ADMIN)
 
@@ -1018,8 +1008,7 @@ async def approve_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"      ✅ *USER APPROVED*\n"
         f"╚══════════════════════╝\n\n"
         f"🆔 User: `{target_id}`\n"
-        f"📅 Expiry: *{expires.strftime('%d %b %Y')}*\n\n"
-        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        f"📅 Expiry: *{expires.strftime('%d %b %Y')}*",
         parse_mode="Markdown"
     )
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
@@ -1053,8 +1042,7 @@ async def reject_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"╔══════════════════════╗\n"
         f"      ❌ *USER REJECTED*\n"
         f"╚══════════════════════╝\n\n"
-        f"🆔 User: `{target_id}`\n\n"
-        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        f"🆔 User: `{target_id}`",
         parse_mode="Markdown"
     )
     await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
@@ -1076,9 +1064,8 @@ async def pending_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "╔══════════════════════╗\n"
             "      ⏳ *PENDING REQUESTS*\n"
             "╚══════════════════════╝\n\n"
-            "✅ Koi pending request nahi hai.\n\n"
-            "_🗑 Ye message 2 min mein delete ho jayega_",
-            parse_mode="Markdown"
+            "✅ Koi pending request nahi hai.",
+        parse_mode="Markdown"
         )
         await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
@@ -1089,7 +1076,6 @@ async def pending_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ]
     for r in rows:
         lines.append(f"🔸 `{r['user_id']}` — {r['joined_at'].strftime('%d %b, %H:%M')}")
-    lines.append("\n_🗑 Ye message 2 min mein delete ho jayega_")
     reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
     await _schedule_cmd_delete(ctx.bot, update, reply, DEL_ADMIN)
 
@@ -1110,9 +1096,8 @@ async def expiring_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "╔══════════════════════╗\n"
             "      ⚠️ *EXPIRING SOON*\n"
             "╚══════════════════════╝\n\n"
-            "✅ Agle 3 din mein koi expire nahi ho raha.\n\n"
-            "_🗑 Ye message 10 sec mein delete ho jayega_",
-            parse_mode="Markdown"
+            "✅ Agle 3 din mein koi expire nahi ho raha.",
+        parse_mode="Markdown"
         )
         await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
         return
@@ -1125,7 +1110,6 @@ async def expiring_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         delta = r["expires_at"] - datetime.utcnow()
         icon  = "🔴" if delta.days == 0 else ("🟡" if delta.days <= 1 else "🟠")
         lines.append(f"{icon} `{r['user_id']}` — {r['expires_at'].strftime('%d %b %Y')} *(+{delta.days}d)*")
-    lines.append("\n_🗑 Ye message 10 sec mein delete ho jayega_")
     reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
     await _schedule_cmd_delete(ctx.bot, update, reply, DEL_QUICK)
 
