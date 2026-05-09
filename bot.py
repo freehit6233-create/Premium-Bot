@@ -24,9 +24,14 @@ ADMIN_ID         = int(os.environ["ADMIN_ID"])
 ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "@SynaX_69")
 SUPPORT_USERNAME = os.environ.get("SUPPORT_USERNAME", "@Olly_077")   # support button username
 
-AUTO_DELETE_SECONDS = 600
-REPEAT_CHANCE       = 0.02   # 2% repeat chance
-APPROVAL_DAYS       = 7
+AUTO_DELETE_SECONDS  = 600
+REPEAT_CHANCE        = 0.02   # 2% repeat chance
+APPROVAL_DAYS        = 7
+
+# Auto-delete delays
+DEL_QUICK   = 10          # /status /stats /expiring  → 10 sec
+DEL_ADMIN   = 120         # /pending /approve /reject /ban /unban /banned → 2 min
+DEL_BROADCAST = 43200     # /broadcast messages → 12 hours
 
 # Runtime toggle — admin can flip with /support on|off
 support_button_enabled: bool = True
@@ -53,6 +58,14 @@ def _fire_and_forget(coro):
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     return task
+
+async def _schedule_cmd_delete(bot, update: Update, reply_msg, delay: int):
+    """Schedule auto-delete for both the user's command message and the bot's reply."""
+    chat_id = update.effective_chat.id
+    if reply_msg:
+        await auto_delete(bot, chat_id, reply_msg.message_id, delay)
+    if update.message:
+        await auto_delete(bot, chat_id, update.message.message_id, delay)
 
 pool: asyncpg.Pool = None
 
@@ -593,29 +606,46 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if await is_banned(user_id):
-        await update.message.reply_text(BUY_PREMIUM_MSG, parse_mode="Markdown")
+        r = await update.message.reply_text(BUY_PREMIUM_MSG, parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
         return
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT is_approved, expires_at FROM users WHERE user_id = $1", user_id)
     if not row or not row["is_approved"]:
-        await update.message.reply_text("⏳ *Aapka account approved nahi hai abhi.*", parse_mode="Markdown")
+        r = await update.message.reply_text("⏳ *Aapka account approved nahi hai abhi.*", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
         return
     expires_at = row["expires_at"]
     if expires_at:
         delta     = expires_at - datetime.utcnow()
         days_left = max(0, delta.days)
         exp_str   = expires_at.strftime('%d %b %Y')
+        if days_left > 5:
+            status_icon = "🟢"
+        elif days_left > 2:
+            status_icon = "🟡"
+        else:
+            status_icon = "🔴"
         text = (
-            f"📊 *Aapka Premium Status*\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"✅ Status: *Active*\n"
-            f"📅 Expiry Date: *{exp_str}*\n"
-            f"⏳ Baaki Din: *{days_left} din*\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
+            f"╔══════════════════════╗\n"
+            f"      💎 *PREMIUM STATUS* 💎\n"
+            f"╚══════════════════════╝\n\n"
+            f"{status_icon} Status: *Active*\n"
+            f"📅 Expiry: *{exp_str}*\n"
+            f"⏳ Remaining: *{days_left} din*\n\n"
+            f"_🗑 Ye message 10 sec mein delete ho jayega_"
         )
     else:
-        text = "✅ *Aapka account approved hai.*\n📅 Expiry: N/A"
-    await update.message.reply_text(text, parse_mode="Markdown")
+        text = (
+            f"╔══════════════════════╗\n"
+            f"      💎 *PREMIUM STATUS* 💎\n"
+            f"╚══════════════════════╝\n\n"
+            f"🟢 Status: *Active*\n"
+            f"📅 Expiry: *Lifetime*\n\n"
+            f"_🗑 Ye message 10 sec mein delete ho jayega_"
+        )
+    r = await update.message.reply_text(text, parse_mode="Markdown")
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
 
 
 # ─── Button Handler ────────────────────────────────────────────────────────────
@@ -725,16 +755,18 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         media_count    = await conn.fetchval("SELECT COUNT(*) FROM media")
         pending_count  = await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_approved = FALSE AND is_rejected = FALSE")
     text = (
-        f"📊 *Bot Statistics*\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"👥 Total Joined: *{total_users}*\n"
-        f"✅ Approved Users: *{approved_count}*\n"
-        f"⏳ Pending Requests: *{pending_count}*\n"
-        f"🚫 Banned Users: *{banned_count}*\n"
-        f"🎬 Total Media in DB: *{media_count}*\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+        f"╔══════════════════════╗\n"
+        f"      📊 *BOT STATISTICS*\n"
+        f"╚══════════════════════╝\n\n"
+        f"👥 Total Joined:       *{total_users}*\n"
+        f"✅ Approved Users:    *{approved_count}*\n"
+        f"⏳ Pending:               *{pending_count}*\n"
+        f"🚫 Banned:                *{banned_count}*\n"
+        f"🎬 Media in DB:         *{media_count}*\n\n"
+        f"_🗑 Ye message 10 sec mein delete ho jayega_"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    r = await update.message.reply_text(text, parse_mode="Markdown")
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
 
 
 # ─── Admin: /broadcast ─────────────────────────────────────────────────────────
@@ -775,13 +807,13 @@ async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     message_id=replied_msg.message_id,
                     protect_content=True,   # ← forward/download disable
                 )
-                await auto_delete(ctx.bot, uid, sent.message_id, 86400)
+                await auto_delete(ctx.bot, uid, sent.message_id, DEL_BROADCAST)
                 success += 1
             except TelegramError:
                 failed += 1
             await asyncio.sleep(0.05)
         await status_msg.edit_text(
-            f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 24 ghante baad auto-delete ho jayega.",
+            f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 12 ghante baad auto-delete ho jayega.",
             parse_mode="Markdown"
         )
         return
@@ -846,15 +878,14 @@ async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     entities=shifted_entities if shifted_entities else None,
                     protect_content=True,   # ← forward/download disable
                 )
-            # Auto-delete broadcast after 24 hours silently
-            await auto_delete(ctx.bot, uid, sent.message_id, 86400)
+            await auto_delete(ctx.bot, uid, sent.message_id, DEL_BROADCAST)
             success += 1
         except TelegramError:
             failed += 1
         await asyncio.sleep(0.05)
 
     await status_msg.edit_text(
-        f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 24 ghante baad auto-delete ho jayega.",
+        f"✅ *Broadcast Complete!*\n\n✔️ Sent: *{success}*\n❌ Failed: *{failed}*\n🕐 12 ghante baad auto-delete ho jayega.",
         parse_mode="Markdown"
     )
 
@@ -865,15 +896,18 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Sirf admin use kar sakta hai.")
         return
     if not ctx.args:
-        await update.message.reply_text("ℹ️ Usage: `/ban <user_id> [reason]`", parse_mode="Markdown")
+        r = await update.message.reply_text("ℹ️ Usage: `/ban <user_id> [reason]`", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
+        r = await update.message.reply_text("❌ Invalid user ID.")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     if target_id == ADMIN_ID:
-        await update.message.reply_text("❌ Admin ko ban nahi kar sakte!")
+        r = await update.message.reply_text("❌ Admin ko ban nahi kar sakte!")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     reason = " ".join(ctx.args[1:]) if len(ctx.args) > 1 else "No reason given"
     await ban_user(target_id, reason)
@@ -881,7 +915,16 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ctx.bot.send_message(chat_id=target_id, text=f"🚫 *Aapko ban kar diya gaya hai.*\nReason: {reason}", parse_mode="Markdown")
     except TelegramError:
         pass
-    await update.message.reply_text(f"✅ User `{target_id}` ban ho gaya!\n📝 Reason: {reason}", parse_mode="Markdown")
+    r = await update.message.reply_text(
+        f"╔══════════════════════╗\n"
+        f"      🚫 *USER BANNED*\n"
+        f"╚══════════════════════╝\n\n"
+        f"🆔 User: `{target_id}`\n"
+        f"📝 Reason: {reason}\n\n"
+        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        parse_mode="Markdown"
+    )
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
 
 
 # ─── Admin: /unban ─────────────────────────────────────────────────────────────
@@ -890,22 +933,34 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Sirf admin use kar sakta hai.")
         return
     if not ctx.args:
-        await update.message.reply_text("ℹ️ Usage: `/unban <user_id>`", parse_mode="Markdown")
+        r = await update.message.reply_text("ℹ️ Usage: `/unban <user_id>`", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
+        r = await update.message.reply_text("❌ Invalid user ID.")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     if not await is_banned(target_id):
-        await update.message.reply_text(f"⚠️ User `{target_id}` ban nahi hai.", parse_mode="Markdown")
+        r = await update.message.reply_text(f"⚠️ User `{target_id}` ban nahi hai.", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     await unban_user(target_id)
     try:
         await ctx.bot.send_message(chat_id=target_id, text="✅ *Aapka ban hata diya gaya hai!*\n/start dabao aur enjoy karo 🎉", parse_mode="Markdown")
     except TelegramError:
         pass
-    await update.message.reply_text(f"✅ User `{target_id}` unban ho gaya!", parse_mode="Markdown")
+    r = await update.message.reply_text(
+        f"╔══════════════════════╗\n"
+        f"      🔓 *USER UNBANNED*\n"
+        f"╚══════════════════════╝\n\n"
+        f"🆔 User: `{target_id}`\n"
+        f"✅ Ban successfully hata diya gaya.\n\n"
+        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        parse_mode="Markdown"
+    )
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
 
 
 # ─── Admin: /banned ────────────────────────────────────────────────────────────
@@ -916,12 +971,30 @@ async def banned_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT user_id, reason, banned_at FROM banned_users ORDER BY banned_at DESC")
     if not rows:
-        await update.message.reply_text("✅ Koi bhi user ban nahi hai.")
+        r = await update.message.reply_text(
+            "╔══════════════════════╗\n"
+            "      🚫 *BANNED USERS*\n"
+            "╚══════════════════════╝\n\n"
+            "✅ Koi bhi user ban nahi hai.\n\n"
+            "_🗑 Ye message 2 min mein delete ho jayega_",
+            parse_mode="Markdown"
+        )
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
-    lines = ["🚫 *Banned Users List:*\n"]
+    lines = [
+        "╔══════════════════════╗\n"
+        f"   🚫 *BANNED USERS ({len(rows)})*\n"
+        "╚══════════════════════╝\n"
+    ]
     for r in rows:
-        lines.append(f"• `{r['user_id']}`\n  📝 {r['reason']}\n  🕐 {r['banned_at'].strftime('%d %b %Y, %H:%M')}")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(
+            f"🔴 `{r['user_id']}`\n"
+            f"   📝 {r['reason']}\n"
+            f"   🕐 {r['banned_at'].strftime('%d %b %Y, %H:%M')}"
+        )
+    lines.append("\n_🗑 Ye message 2 min mein delete ho jayega_")
+    reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await _schedule_cmd_delete(ctx.bot, update, reply, DEL_ADMIN)
 
 
 # ─── Admin: /approve ───────────────────────────────────────────────────────────
@@ -930,17 +1003,32 @@ async def approve_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Sirf admin use kar sakta hai.")
         return
     if not ctx.args:
-        await update.message.reply_text("ℹ️ Usage: `/approve <user_id>`", parse_mode="Markdown")
+        r = await update.message.reply_text("ℹ️ Usage: `/approve <user_id>`", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("❌ Valid User ID daalo.")
+        r = await update.message.reply_text("❌ Valid User ID daalo.")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     expires = await approve_user(target_id)
-    await update.message.reply_text(f"✅ User `{target_id}` approve ho gaya!\n📅 Expiry: *{expires.strftime('%d %b %Y')}*", parse_mode="Markdown")
+    r = await update.message.reply_text(
+        f"╔══════════════════════╗\n"
+        f"      ✅ *USER APPROVED*\n"
+        f"╚══════════════════════╝\n\n"
+        f"🆔 User: `{target_id}`\n"
+        f"📅 Expiry: *{expires.strftime('%d %b %Y')}*\n\n"
+        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        parse_mode="Markdown"
+    )
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
     try:
-        await ctx.bot.send_message(target_id, f"🎉 *Aapka access restore ho gaya!*\n\n📅 Expiry: *{expires.strftime('%d %b %Y')}*\n\n/start dabao aur enjoy karo 🚀", parse_mode="Markdown")
+        await ctx.bot.send_message(
+            target_id,
+            f"🎉 *Aapka access restore ho gaya!*\n\n📅 Expiry: *{expires.strftime('%d %b %Y')}*\n\n/start dabao aur enjoy karo 🚀",
+            parse_mode="Markdown"
+        )
     except TelegramError:
         pass
 
@@ -951,15 +1039,25 @@ async def reject_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Sirf admin use kar sakta hai.")
         return
     if not ctx.args:
-        await update.message.reply_text("ℹ️ Usage: `/reject <user_id>`", parse_mode="Markdown")
+        r = await update.message.reply_text("ℹ️ Usage: `/reject <user_id>`", parse_mode="Markdown")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("❌ Valid User ID daalo.")
+        r = await update.message.reply_text("❌ Valid User ID daalo.")
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
     await reject_user(target_id)
-    await update.message.reply_text(f"❌ User `{target_id}` reject ho gaya!", parse_mode="Markdown")
+    r = await update.message.reply_text(
+        f"╔══════════════════════╗\n"
+        f"      ❌ *USER REJECTED*\n"
+        f"╚══════════════════════╝\n\n"
+        f"🆔 User: `{target_id}`\n\n"
+        f"_🗑 Ye message 2 min mein delete ho jayega_",
+        parse_mode="Markdown"
+    )
+    await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
     try:
         await ctx.bot.send_message(target_id, "❌ *Aapki request reject ho gayi hai.*\n\nAdmin se contact karein.", parse_mode="Markdown")
     except TelegramError:
@@ -974,12 +1072,26 @@ async def pending_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT user_id, joined_at FROM users WHERE is_approved = FALSE AND is_rejected = FALSE ORDER BY joined_at ASC")
     if not rows:
-        await update.message.reply_text("✅ Koi pending request nahi hai.")
+        r = await update.message.reply_text(
+            "╔══════════════════════╗\n"
+            "      ⏳ *PENDING REQUESTS*\n"
+            "╚══════════════════════╝\n\n"
+            "✅ Koi pending request nahi hai.\n\n"
+            "_🗑 Ye message 2 min mein delete ho jayega_",
+            parse_mode="Markdown"
+        )
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_ADMIN)
         return
-    lines = [f"⏳ *Pending Requests ({len(rows)}):*\n"]
+    lines = [
+        "╔══════════════════════╗\n"
+        f"   ⏳ *PENDING REQUESTS ({len(rows)})*\n"
+        "╚══════════════════════╝\n"
+    ]
     for r in rows:
-        lines.append(f"• `{r['user_id']}` — {r['joined_at'].strftime('%d %b, %H:%M')}")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"🔸 `{r['user_id']}` — {r['joined_at'].strftime('%d %b, %H:%M')}")
+    lines.append("\n_🗑 Ye message 2 min mein delete ho jayega_")
+    reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await _schedule_cmd_delete(ctx.bot, update, reply, DEL_ADMIN)
 
 
 # ─── Admin: /expiring ──────────────────────────────────────────────────────────
@@ -994,13 +1106,28 @@ async def expiring_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             soon
         )
     if not rows:
-        await update.message.reply_text("✅ Agle 3 din mein koi expire nahi ho raha.")
+        r = await update.message.reply_text(
+            "╔══════════════════════╗\n"
+            "      ⚠️ *EXPIRING SOON*\n"
+            "╚══════════════════════╝\n\n"
+            "✅ Agle 3 din mein koi expire nahi ho raha.\n\n"
+            "_🗑 Ye message 10 sec mein delete ho jayega_",
+            parse_mode="Markdown"
+        )
+        await _schedule_cmd_delete(ctx.bot, update, r, DEL_QUICK)
         return
-    lines = [f"⚠️ *Expiring in 3 Days ({len(rows)} users):*\n"]
+    lines = [
+        "╔══════════════════════╗\n"
+        f"   ⚠️ *EXPIRING SOON ({len(rows)} users)*\n"
+        "╚══════════════════════╝\n"
+    ]
     for r in rows:
         delta = r["expires_at"] - datetime.utcnow()
-        lines.append(f"• `{r['user_id']}` — {r['expires_at'].strftime('%d %b %Y')} (*{delta.days}d baaki*)")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        icon  = "🔴" if delta.days == 0 else ("🟡" if delta.days <= 1 else "🟠")
+        lines.append(f"{icon} `{r['user_id']}` — {r['expires_at'].strftime('%d %b %Y')} *(+{delta.days}d)*")
+    lines.append("\n_🗑 Ye message 10 sec mein delete ho jayega_")
+    reply = await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await _schedule_cmd_delete(ctx.bot, update, reply, DEL_QUICK)
 
 
 # ─── Admin: /support ───────────────────────────────────────────────────────────
