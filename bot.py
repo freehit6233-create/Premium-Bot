@@ -72,7 +72,7 @@ pool: asyncpg.Pool = None
 # ─── DB Init ───────────────────────────────────────────────────────────────────
 async def init_db():
     global pool
-    pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10, ssl="prefer")
+    pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10, ssl="require")
     async with pool.acquire() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS media (
